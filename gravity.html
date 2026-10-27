@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+
+<html lang="en">
+
+<head> 
+    <meta charset = "UTF-8">
+    <meta name = "viewport" content="width=device-width, initial-scale=1.0">
+<title>Gravity Toy</title>
+<style>
+    *{margin: 0; padding: 0; box-sizing: border-box;}
+
+    body { 
+        background: rgb(0, 0, 0);
+        color : white;
+        font-family: 'Courier New', monospace;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center; 
+        min-height: 100vh;
+        gap: 16px;
+        padding: 20px;
+    }
+
+    h1{ 
+        font-size: 14px;
+        letter-spacing : 4px;
+        text-transform: uppercase;
+        color: rgb(255, 255, 255,0.3);
+    }
+ /* ---- CANVAS ---- */
+    canvas {
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 8px;
+      cursor: crosshair;
+      display: block;
+    }
+
+    /* ---- CONTROLS ---- */
+    .controls {
+      display: flex;
+      gap: 24px;
+      align-items: center;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .ctrl {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: rgba(255,255,255,0.4);
+      letter-spacing: 1px;
+    }
+
+    .ctrl span {
+      color: rgba(255,255,255,0.8);
+      min-width: 28px;
+      text-align: right;
+    }
+
+    input[type="range"] {
+      -webkit-appearance: none;
+      width: 80px;
+      height: 2px;
+      background: rgba(255,255,255,0.15);
+      border-radius: 2px;
+      outline: none;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #7c6fe0;
+      cursor: pointer;
+    }
+
+    .hint {
+      font-size: 11px;
+      color: rgba(255,255,255,0.2);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+</style>
+</head>
+
+<body> 
+    <h1> Gravity Toy</h1>
+
+    <canvas id="canvas"></canvas>
+
+    <div class="controls">
+        <div class="ctrl">
+            PARTICLES
+            <input type ="range" id ="sliderParticles" mins="50" max ="500" step="10" value="200">
+            <span id="valParticles">200</span>
+        </div>
+        <div class = "ctrl">
+            GRAVITY
+            <input type ="range" id ="sliderGravity" min = "1" max ="20" step="1" value="7">
+            <span id="valGravity">7</span>
+        </div>
+        <div class = "ctrl">
+            TRAILS
+            <input type ="range" id ="sliderTrails" min="1" max="30" step= "1" value ="10">
+            <span id ="valTrails">10</span>
+        </div>       
+    </div>
+    <div class ="hint">Click to add well • Right-click to remove </div>
+
+    <script>
+
+        //1. get the canvas and its drawing context 
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+
+        //canvas size
+        canvas.width = 700;
+        canvas.height = 500;
+
+        //2. add settings controls
+        let PARTICLE_COUNT = 200; 
+        let GRAVITY = 7;
+        let TRAIL_LENGTH = 10;
+
+        //make the particles look pretty 
+        const COLORS = [
+          '#7c6fe0', // purple
+          '#5dcaa5', // teal
+          '#e07c7c', // coral
+          '#7cb8e0', // blue
+          '#e0c07c', // amber
+        ];
+
+        //3.Data structures 
+        //particles = array of particle objects
+        //wells = array of gravity well objects 
+
+        let particles = [];
+        let wells = [];
+
+        //4. make 1 particle 
+        //each particle must have:
+        // x,y - current position (random to simulate space infinite openness)
+        //vx,xy - velocity 
+        //color - based on colors class 
+        //trail - array of previous positions fpr the glowy trail
+        //size - how big the dot is
+
+        function createParticle() {
+            return { 
+                x: Math.random() * canvas.width,
+                y: Math.random() * canvas.height,
+                vx: (Math.random() - 0.5) * 2, // Random  between -1 and 1
+                vy : (Math.random() - 0.5) * 2,
+                color : COLORS[Math.floor(Math.random() * COLORS.length)],
+                trail : [],
+                size : Math.random() * 1.5,
+            };
+        }
+
+        //5. Fill the particle array 
+        //called at start and when slider changes 
+
+        function spawnParticles() {
+            particles = [];
+            for (let i = 0; i < PARTICLE_COUNT; i++) {
+                particles.push(createParticle());
+            }
+        }
+        spawnParticles();
+
+        //6. add physics 
+        function update() {
+
+            
+
+            for (const p of particles) {
+                //apply gravity for every well 
+                for (const w of wells) {
+                    const dx = w.x - p.x;   //horizontal  distance to well
+                    const dy = w.y - p.y;  //vertical distance to well
+                    const dist = Math.sqrt(dx*dx + dy*dy); //actual distance (pythagoras)
+
+
+                    //if the particles are too close, teleport it back to a random spot 
+                    //teleporting them
+
+                    if (dist < 10) {
+                        p.x = Math.random() * canvas.width;
+                        p.y = Math.random() * canvas.height;
+                        p.vx = (Math.random() - 0.5) * 2;
+                        p.vy = (Math.random() - 0.5) * 2;
+                        p.trail = [];
+                        continue;
+                    }
+
+                    //Newtosn inverse square law
+                    //force gets stronger as the distance gets smaller
+                    //add +200 to avoid infinite force at dist=0
+                    const force = (GRAVITY * 3000)/(dist * dist + 200);
+
+                    //Nudge velocity toward the well 
+                    //(dx/dist) and (dy/dist) give us the direction as a unit vector
+
+                    p.vx += (dx/ dist) * force * 0.001;
+                    p.vy += (dy/dist) * force * 0.001;
+                }
+
+                //speed cap ( stop the particles from going crazy)
+                const speed  = Math.sqrt(p.vx*p.vx + p.vy*p.vy);
+                if (speed > 6) {
+                    p.vx = (p.vx / speed) * 6;
+                    p.vy = (p.vy / speed) * 6;
+                }
+
+                //Save current position to trail, trim old ones 
+                p.trail.push({x:p.x, y: p.y});
+                if (p.trail.length > TRAIL_LENGTH) {
+                    p.trail.shift(); //remove oldest position
+                }
+
+                //Move the particle 
+                p.x += p.vx;
+                p.y += p.vy;
+
+                //Bounce off the walls 
+                if ( p.x < 0) { p.x = 0; p.vx *= -0.7;}
+                if (p.x > canvas.width) {p.x = canvas.width; p.vx *= -0.7;}
+                if (p.y < 0) {p.y = 0; p.vy *= -0.7;}
+                if (p.y > canvas.height) {p.y = canvas.height; p.vy *= -0.7;}
+
+
+            }
+        }
+
+        //7. Draw - paint everything to the canvas
+        function draw() {
+            // --- Fade the canvas instead of fully clearing it ---
+      // This creates the trail/ghost effect.
+      // Try changing 0.25 to 1.0 to see what full-clear looks like.
+      ctx.fillStyle = 'rgba(8, 8, 15, 0.25)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // --- Draw each particle and its trail ---
+      for (const p of particles) {
+
+        // Draw trail (a line through past positions)
+        if (p.trail.length > 1) {
+          ctx.beginPath();
+          ctx.moveTo(p.trail[0].x, p.trail[0].y);
+          for (let i = 1; i < p.trail.length; i++) {
+            ctx.lineTo(p.trail[i].x, p.trail[i].y);
+          }
+          ctx.strokeStyle = p.color + '44'; // '44' adds ~27% transparency
+          ctx.lineWidth   = p.size * 0.5;
+          ctx.stroke();
+        }
+
+        // Draw the particle dot
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fillStyle = p.color;
+        ctx.fill();
+      }
+
+      // --- Draw gravity wells ---
+      for (const w of wells) {
+        // Outer glow ring
+        ctx.beginPath();
+        ctx.arc(w.x, w.y, 16, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(140, 100, 255, 0.4)';
+        ctx.lineWidth   = 1;
+        ctx.stroke();
+
+        // White centre dot
+        ctx.beginPath();
+        ctx.arc(w.x, w.y, 4, 0, Math.PI * 2);
+        ctx.fillStyle = '#ffffff';
+        ctx.fill();
+      }
+        }
+
+        //8. loop 
+        function loop()  {
+            update();
+            draw();
+            requestAnimationFrame(loop);
+        }
+        loop();
+
+        canvas.addEventListener('click', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      // getBoundingClientRect gives us the canvas position on screen.
+      // We subtract it so coords are relative to canvas, not the whole page.
+      wells.push({
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top,
+      });
+    });
+        //9. user input
+canvas.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    wells = wells.filter(w=> Math.sqrt((w.x-mx)**2 + (w.y-my)**2) > 30);
+});
+
+document.getElementById('sliderParticles').addEventListener('input', function() {
+      PARTICLE_COUNT = +this.value;
+      document.getElementById('valParticles').textContent = this.value;
+      spawnParticles();
+    });
+
+    document.getElementById('sliderGravity').addEventListener('input', function() {
+      GRAVITY = +this.value;
+      document.getElementById('valGravity').textContent = this.value;
+    });
+
+    document.getElementById('sliderTrails').addEventListener('input', function() {
+      TRAIL_LENGTH = +this.value;
+      document.getElementById('valTrails').textContent = this.value;
+    });
+    </script>
+</body>
+</html>
